@@ -2,7 +2,7 @@ import Darwin
 import NightCrewCore
 
 /// SPEC §5.1: the current user's processes via libproc and sysctl. Processes that cannot be read are skipped.
-final class ProcessProbe {
+final class ProcessProbe: ProcessProbing {
     private let uid = getuid()
     private let timebase: mach_timebase_info_data_t = {
         var timebase = mach_timebase_info_data_t()

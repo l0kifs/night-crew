@@ -2,7 +2,7 @@ import Foundation
 import NightCrewCore
 
 /// SPEC §5.3 signal 1: newest transcript mtimes on disk.
-struct TranscriptProbe {
+struct TranscriptProbe: TranscriptProbing {
     private let claudeRoot = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects")
     private let codexRoot = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/sessions")
     /// Codex files a rollout under the session's start date, so a long session writes to an older folder.

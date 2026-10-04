@@ -83,7 +83,7 @@ A session is *working* when either signal fired within the last `activityWindow`
    - claude: the newest `*.jsonl` in `~/.claude/projects/<encoded cwd>/`, where the encoded cwd replaces every character other than `A–Z a–z 0–9` with `-` (observed for `/` and `.`: `/Users/x/.foo` → `-Users-x--foo`). Attributed to the session with that cwd.
    - codex: the newest `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`. Attributed to the agent: every live codex session root is marked working.
    - A transcript counts only while a live session root of that agent (for claude, with that cwd) exists.
-   - The transcript roots are watched with FSEvents (latency 0.5 s). A write triggers an immediate poll, so a prompt submitted just before the lid closes reaches `disablesleep 1` before the Mac can sleep.
+   - The transcript roots are watched with FSEvents (latency 0.5 s). A write triggers an immediate poll, so a prompt submitted just before the lid closes reaches `disablesleep 1` before the Mac can sleep. It does so only while the Mac is not kept awake, and at most once per second: while awake a write changes nothing urgent, and a poll per write (~36 ms CPU each, several writes a minute per working session) would cost far more than the timer. Appends to an existing transcript do raise FSEvents (checked 2026-10-04: 11 events in 40 s from 2 working sessions).
 2. **CPU** — total CPU time of the root process plus all descendants (the subtree built from the ppid map), via `proc_pidinfo(PROC_PIDTASKINFO)`: `pti_total_user + pti_total_system`. Working if the delta over `activityWindow` is at least `cpuThreshold` (default 3.0 s, i.e. 5 % of one core).
    - **Apple Silicon gotcha:** these values are in mach ticks. Convert with `mach_timebase_info`.
    - Descendants count, because tool calls (tests, builds, git) run as children.
@@ -231,6 +231,8 @@ Optional, off by default: a notification when switching to awake or idle.
 - **P3:** GitHub Releases with a prebuilt universal binary and a Homebrew tap.
 
 ## 12. Logging
+
+`nightcrew watch [--seconds N] [--off]` runs the real poll loop (timer + FSEvents) as a dry run: it prints each poll's status and the actions it would take, and executes none.
 
 Use `os.Logger(subsystem: "dev.l0kifs.nightcrew")`. Log every state transition and every pmset call with its result. Do not log per-poll noise at default level. The watchdog logs with `logger -t nightcrew-watchdog`. The README documents:
 `log stream --predicate 'subsystem == "dev.l0kifs.nightcrew" OR senderImagePath ENDSWITH "logger"'`.

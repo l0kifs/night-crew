@@ -5,7 +5,7 @@ import IOKit.ps
 import NightCrewCore
 
 /// SPEC §7, read side. Writes (`sudo -n pmset -a disablesleep`, `sleepnow`, `displaysleepnow`) come later.
-struct PowerControl {
+struct PowerControl: PowerSensing {
     func read() -> PowerReading {
         let displays = displayState()
         let battery = batteryState()
