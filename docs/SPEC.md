@@ -60,6 +60,7 @@ Keep side effects behind protocols (`ProcessProbing`, `TranscriptProbing`, `Powe
 ### 5.1 Process enumeration
 - `proc_listallpids` → for each pid: `proc_pidpath`, argv via `sysctl(KERN_PROCARGS2)`, ppid via `proc_pidinfo(PROC_PIDTBSDINFO)`, cwd via `PROC_PIDVNODEPATHINFO`.
 - Only the current user's processes are relevant. Skip EPERM failures silently.
+- Measured 2026-10-04 (`nightcrew probe`, ~410 processes): 33–52 ms per snapshot, 0.18 s CPU per 20 s (about 0.7 % of one core at a 5 s poll), 12.7 MB resident.
 
 ### 5.2 Matching (defaults; configurable)
 A process is a session root when it matches a rule and its parent does not match the same agent, which prevents double counting.
@@ -90,7 +91,8 @@ A session is *working* when either signal fired within the last `activityWindow`
 Why two signals — measured 2026-10-02 (macOS 27, Claude Code 2.1.286 in VS Code, two independent `ps` samples): idle session 0.25–0.57 s CPU per 60 s; a session between turns with background watchers (`docker compose logs -f`, a Python watch loop) 0.60–0.79 s; working sessions 0.75–1.26 s while the model thinks or streams, 2.2–2.9 s with light tool calls. CPU cannot separate those; transcript writes did (working: written within the last second; idle: 9 minutes old). The CPU signal exists for heavy tool calls (builds, tests), which use one or more full cores and write no transcript until they finish.
 
 - If an agent's transcript root (`~/.claude/projects`, `~/.codex/sessions`) does not exist while it has live sessions, log it once, use CPU only for that agent, and show "Detection degraded" in the menu. A missing per-project folder is normal before a session's first prompt and is not degraded.
-- Recalibrate per release by logging CPU deltas and transcript ages for idle and working sessions; document the measured values in the README. AC5 is the gate.
+- Recalibrate per release with `nightcrew probe [--seconds N]`, which prints each session's CPU in the window and transcript age every poll; document the measured values in the README. AC5 is the gate.
+- Two Claude sessions in one cwd share the transcript signal: both show as working in the menu when either writes. The awake decision is unaffected. Neither `lsof` nor argv identifies a process's transcript (checked 2026-10-04); Phase 2 hooks carry the session id.
 - Known blind spots, covered only by the grace period (6.2): a thinking or API-wait phase longer than `grace`; work that runs outside the session's process tree (Docker Desktop/colima VMs are children of launchd, ssh, remote CI) with no transcript write and little local CPU; background tasks and scheduled wakeups between turns. Workaround: Always awake. Phase 2 hooks (§11) narrow it.
 - At every awake true→false, log each session's live descendants other than MCP servers. A non-empty list is the trip-wire for the second blind spot (§14).
 
