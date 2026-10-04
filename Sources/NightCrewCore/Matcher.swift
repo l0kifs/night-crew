@@ -11,13 +11,17 @@ public struct ProcessRecord: Equatable, Sendable {
     /// argv via `KERN_PROCARGS2`, argv[0] first. Empty when unreadable.
     public var arguments: [String]
     public var cwd: String?
+    /// Cumulative user + system CPU in seconds (`PROC_PIDTASKINFO`, converted with `MachTime`). Nil when unreadable.
+    public var cpuSeconds: Double?
 
-    public init(pid: Int32, ppid: Int32, executablePath: String, arguments: [String] = [], cwd: String? = nil) {
+    public init(pid: Int32, ppid: Int32, executablePath: String, arguments: [String] = [], cwd: String? = nil,
+                cpuSeconds: Double? = nil) {
         self.pid = pid
         self.ppid = ppid
         self.executablePath = executablePath
         self.arguments = arguments
         self.cwd = cwd
+        self.cpuSeconds = cpuSeconds
     }
 }
 
