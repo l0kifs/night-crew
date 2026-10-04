@@ -20,7 +20,7 @@ AGE=$((NOW - BEAT))
 [ "$AGE" -gt "$STALE_AFTER" ] || exit 0
 
 if /usr/bin/pmset -a disablesleep 0; then
-    /usr/bin/logger -t nightcrew-watchdog "heartbeat ${AGE}s old: SleepDisabled set back to 0"
+    /usr/bin/logger -t nightcrew-watchdog "nightcrew watchdog: heartbeat ${AGE}s old: SleepDisabled set back to 0"
 else
-    /usr/bin/logger -t nightcrew-watchdog "heartbeat ${AGE}s old: pmset -a disablesleep 0 failed"
+    /usr/bin/logger -t nightcrew-watchdog "nightcrew watchdog: heartbeat ${AGE}s old: pmset -a disablesleep 0 failed"
 fi
