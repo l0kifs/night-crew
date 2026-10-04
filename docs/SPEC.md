@@ -27,6 +27,7 @@ Non-goals (v1): Linux/Windows; GUI agent apps (Claude.app, Codex desktop app); n
 - Swift 5.9+, SwiftPM, AppKit `NSStatusItem` (or SwiftUI `MenuBarExtra`), no third-party deps.
 - `LSUIElement = true` (no Dock icon).
 - Bundle id: `dev.l0kifs.nightcrew`.
+- Tests use swift-testing (`import Testing`): the Command Line Tools ship it but not XCTest. Running them needs macOS 14+.
 - Built locally from source by the install script, then ad-hoc signed (`codesign -s -`). Building locally means there is no quarantine flag and no Gatekeeper issues.
 
 ## 4. Repo layout
@@ -112,8 +113,8 @@ Rules are evaluated in order; the first match wins.
 6. mode == .auto                           → awake = anyWorking || (now - lastWorkingAt < grace)   // grace default 10 min
 ```
 
-- Thermal pause (rule 2) ends after the thermal state has been `fair` or better for 10 min continuously. One notification per pause.
-- Battery pause (rule 3) ends as soon as the Mac is on AC or above the floor. One notification per discharge; the counter resets on AC.
+- Thermal pause (rule 2) ends after the thermal state has been `fair` or better for 10 min continuously. One notification per pause, sent only when the pause overrides an awake state.
+- Battery pause (rule 3) ends as soon as the Mac is on AC or at/above the floor. One notification per discharge, sent only when the pause overrides an awake state; the counter resets on AC.
 - Always awake reverts to Auto 8 h after it was selected. The expiry is persisted, so an expired Always awake loads as Auto after a restart.
 - `lastWorkingAt` is persisted in UserDefaults (at most every 30 s while a session is working) and restored on launch. A restart therefore neither shortens the grace period (no false `sleepnow` while the first CPU sample has no baseline) nor extends it (a crash loop with no work still reaches awake = false).
 
@@ -247,7 +248,7 @@ Use `os.Logger(subsystem: "dev.l0kifs.nightcrew")`. Log every state transition a
 12. Remove `/etc/sudoers.d/nightcrew` while awake, then let the agents finish → the OFF path retries every poll and the icon shows an error. Restore the file → `SleepDisabled 0` within 60 s.
 13. Always awake reverts to Auto 8 h after it was selected, including across an app restart.
 14. `uninstall.sh` removes every installed file (the agent and daemon plists, the app, `/Library/Application Support/NightCrew`, the sudoers file, `~/.nightcrew`); UserDefaults stay unless `--purge`. It leaves `SleepDisabled 0` if NightCrew owned it, and unchanged otherwise.
-15. `swift test` passes. Matcher and Engine have table-driven tests covering every row of §5.2, §6.2 and §6.3, including the Unmanaged and external-display rows.
+15. `make test` passes (it runs `swift test` with the swift-testing macro plugin path; see the Makefile). Matcher and Engine have table-driven tests covering every row of §5.2, §6.2 and §6.3, including the Unmanaged and external-display rows.
 
 ## 14. Durability (stress test 2026-10-02)
 
