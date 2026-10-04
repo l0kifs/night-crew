@@ -10,6 +10,10 @@ func seconds(default value: TimeInterval) -> TimeInterval {
 }
 
 switch arguments.first {
+case nil, "--launchd":
+    MenuApp.run(launchedByLaunchd: arguments.first == "--launchd")
+case "menu":
+    MenuCommand().run()
 case "probe":
     ProbeCommand(duration: seconds(default: 60)).run()
 case "power":
@@ -19,7 +23,9 @@ case "watch":
     WatchCommand(duration: seconds(default: 60), mode: mode, live: arguments.contains("--live")).run()
 default:
     FileHandle.standardError.write(Data("""
-        usage: nightcrew probe [--seconds N]
+        usage: nightcrew [--launchd]          the menu bar app
+               nightcrew menu                     print the menu once (dry)
+               nightcrew probe [--seconds N]
                nightcrew power [--seconds N]
                nightcrew watch [--seconds N] [--off] [--live]
 

@@ -35,12 +35,18 @@ struct SystemClock: Clock {
 /// (SPEC §5.3). With a `runner`, the engine's actions are executed and their outcomes recorded; without, it is a
 /// dry run. Everything runs on one serial queue.
 final class PollLoop: ModeStoring {
-    enum Trigger: String { case timer, transcript }
+    enum Trigger: String { case timer, transcript, request }
 
     /// Set from any thread; read on the poll queue.
     var mode: Mode {
         get { queue.sync { currentMode } }
         set { queue.async { self.currentMode = newValue } }
+    }
+
+    /// Set from any thread; applied on the poll queue.
+    var config: Config {
+        get { queue.sync { poller.config } }
+        set { queue.async { self.poller.config = newValue } }
     }
 
     private let queue = DispatchQueue(label: "dev.l0kifs.nightcrew.poll")
@@ -85,6 +91,11 @@ final class PollLoop: ModeStoring {
             stop()
             return runner?.shutdown()
         }
+    }
+
+    /// Polls now instead of waiting for the timer, e.g. after a menu choice.
+    func pollNow() {
+        queue.async { self.poll(.request) }
     }
 
     /// The menu's Retry item.

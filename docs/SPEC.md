@@ -232,7 +232,7 @@ Optional, off by default: a notification when switching to awake or idle.
 
 ## 12. Logging
 
-`nightcrew watch [--seconds N] [--off] [--live]` runs the real poll loop (timer + FSEvents). By default it is a dry run: it prints each poll's status and the actions it would take, and executes none. `--live` executes them and gives an owned SleepDisabled back on exit, SIGINT or SIGTERM. Checked 2026-10-04 without the sudoers rule: one ON attempt → "Setup required", no retry, ownership cleared, `SleepDisabled` unchanged.
+`nightcrew menu` runs one real poll without executing anything and prints the §10 menu as text. `nightcrew watch [--seconds N] [--off] [--live]` runs the real poll loop (timer + FSEvents). By default it is a dry run: it prints each poll's status and the actions it would take, and executes none. `--live` executes them and gives an owned SleepDisabled back on exit, SIGINT or SIGTERM. Checked 2026-10-04 without the sudoers rule: one ON attempt → "Setup required", no retry, ownership cleared, `SleepDisabled` unchanged.
 
 Use `os.Logger(subsystem: "dev.l0kifs.nightcrew")`. Log every state transition and every pmset call with its result. Do not log per-poll noise at default level. The watchdog logs with `logger -t nightcrew-watchdog`. The README documents (full path: in zsh, the default shell, `log` is a builtin):
 `/usr/bin/log stream --predicate 'subsystem == "dev.l0kifs.nightcrew" OR senderImagePath ENDSWITH "logger"'`.
