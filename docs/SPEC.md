@@ -153,6 +153,7 @@ Rules are evaluated in order; the first match wins.
 | battery             | `IOPSCopyPowerSourcesInfo` / `IOPSCopyPowerSourcesList`                               |
 | thermal state       | `ProcessInfo.processInfo.thermalState` + `thermalStateDidChangeNotification`          |
 
+- `nightcrew power [--seconds N]` prints these readings every poll (checked 2026-10-04 against `pmset -g`, `pmset -g batt`, `ioreg` and `system_profiler`).
 - `disablesleep` is not documented in `man pmset` (checked on macOS 27). The read-back in §6.3 is what detects it silently stopping working.
 - If `sudo -n` fails on the ON path (sudoers entry missing or stale), the menu shows **"Setup required"** with the fix command, and the ON path stops until the user clicks Retry. The OFF path keeps retrying every 60 s.
 - Prevent App Nap from throttling the poll timer: set `NSAppSleepDisabled` in Info.plist, or call `ProcessInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep)`.
