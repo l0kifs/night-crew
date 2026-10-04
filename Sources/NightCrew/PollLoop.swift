@@ -2,9 +2,29 @@ import CoreServices
 import Foundation
 import NightCrewCore
 
-struct OwnershipFile: OwnershipReading {
+struct OwnershipFile: OwnershipStoring {
     static let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".nightcrew/owned")
+
     func isOwned() -> Bool { FileManager.default.fileExists(atPath: Self.url.path) }
+
+    /// The file and its directory entry are fsync'ed before this returns (SPEC §8).
+    func create() throws {
+        let folder = Self.url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = open(Self.url.path, O_CREAT | O_WRONLY | O_TRUNC, 0o644)
+        guard file >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        defer { close(file) }
+        guard fsync(file) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        let directory = open(folder.path, O_RDONLY)
+        if directory >= 0 {
+            fsync(directory)
+            close(directory)
+        }
+    }
+
+    func remove() throws {
+        if unlink(Self.url.path) != 0 && errno != ENOENT { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+    }
 }
 
 struct SystemClock: Clock {
@@ -12,8 +32,9 @@ struct SystemClock: Clock {
 }
 
 /// Runs `Poller` every `pollInterval`, plus at once when a transcript changes while the Mac is not kept awake
-/// (SPEC §5.3). Everything runs on one serial queue.
-final class PollLoop {
+/// (SPEC §5.3). With a `runner`, the engine's actions are executed and their outcomes recorded; without, it is a
+/// dry run. Everything runs on one serial queue.
+final class PollLoop: ModeStoring {
     enum Trigger: String { case timer, transcript }
 
     /// Set from any thread; read on the poll queue.
@@ -26,11 +47,13 @@ final class PollLoop {
     private var poller: Poller
     private var currentMode: Mode = .auto
     private let watchedPaths: [String]
-    private let onTick: (Tick, Trigger, _ persistLastWorkingAt: Date?) -> Void
+    private let onTick: (Tick, Trigger, _ outcomes: [Outcome], _ persistLastWorkingAt: Date?) -> Void
+    /// Set before `start()`. Nil = dry run.
+    var runner: ActionRunner?
     private var timer: DispatchSourceTimer?
     private var stream: FSEventStreamRef?
 
-    init(poller: Poller, watchedPaths: [String], onTick: @escaping (Tick, Trigger, Date?) -> Void) {
+    init(poller: Poller, watchedPaths: [String], onTick: @escaping (Tick, Trigger, [Outcome], Date?) -> Void) {
         self.poller = poller
         self.watchedPaths = watchedPaths
         self.onTick = onTick
@@ -56,9 +79,36 @@ final class PollLoop {
         }
     }
 
+    /// Stops polling and gives back an owned SleepDisabled (SPEC §8 Quit / SIGTERM / SIGINT).
+    func shutdown() -> Outcome? {
+        queue.sync {
+            stop()
+            return runner?.shutdown()
+        }
+    }
+
+    /// The menu's Retry item.
+    func retry() {
+        queue.async { self.poller.retry() }
+    }
+
+    /// `ActionRunner` calls this on the poll queue when Always awake expires.
+    func revertToAuto() {
+        currentMode = .auto
+    }
+
     private func poll(_ trigger: Trigger) {
         let tick = poller.tick(mode: currentMode)
-        onTick(tick, trigger, poller.lastWorkingAtToPersist())
+        var outcomes: [Outcome] = []
+        if let runner {
+            for action in tick.output.actions {
+                if let outcome = runner.run(action) {
+                    poller.record(outcome)
+                    outcomes.append(outcome)
+                }
+            }
+        }
+        onTick(tick, trigger, outcomes, poller.lastWorkingAtToPersist())
     }
 
     private func transcriptChanged() {

@@ -69,6 +69,8 @@ public enum Outcome: Equatable, Sendable {
     case enabled
     case enableSudoFailed
     case enableHadNoEffect
+    /// `~/.nightcrew/owned` could not be written, so SleepDisabled was not touched.
+    case enableOwnershipFailed
     case disabled
     case disableFailed
 }
@@ -128,6 +130,7 @@ public struct Engine: Sendable {
         case .enabled: break
         case .enableSudoFailed: onPathSuspended = .setupRequired
         case .enableHadNoEffect: onPathSuspended = .error("disablesleep had no effect")
+        case .enableOwnershipFailed: onPathSuspended = .error("cannot write ~/.nightcrew/owned")
         case .disabled: offFailing = false
         case .disableFailed: offFailing = true
         }

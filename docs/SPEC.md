@@ -125,7 +125,7 @@ Rules are evaluated in order; the first match wins.
 
 | Condition                                                                 | Action |
 |---------------------------------------------------------------------------|--------|
-| awake, observed ≠ 1                                                       | create the ownership file (§8) → `setSleepDisabled(true)` → read back. Read-back ≠ 1 or sudo failure → `setSleepDisabled(false)`, clear ownership, error state |
+| awake, observed ≠ 1                                                       | create the ownership file (§8) → `setSleepDisabled(true)` → read back. Read-back ≠ 1 or sudo failure → `setSleepDisabled(false)`, clear ownership once a read-back shows not 1, error state. Ownership file not writable → no pmset call, error state |
 | !awake, owned                                                             | `setSleepDisabled(false)` → read back. Read-back ≠ 1 → clear ownership. Otherwise retry every 60 s, never stopping; log each failure; icon shows error |
 | awake true→false because agents finished, lid closed, no external display, `sleepWhenDone` | `pmset sleepnow` |
 | awake true→false because of rule 2 or 3, lid closed, no external display  | `pmset sleepnow` (ignores `sleepWhenDone`) |
@@ -232,10 +232,10 @@ Optional, off by default: a notification when switching to awake or idle.
 
 ## 12. Logging
 
-`nightcrew watch [--seconds N] [--off]` runs the real poll loop (timer + FSEvents) as a dry run: it prints each poll's status and the actions it would take, and executes none.
+`nightcrew watch [--seconds N] [--off] [--live]` runs the real poll loop (timer + FSEvents). By default it is a dry run: it prints each poll's status and the actions it would take, and executes none. `--live` executes them and gives an owned SleepDisabled back on exit, SIGINT or SIGTERM. Checked 2026-10-04 without the sudoers rule: one ON attempt → "Setup required", no retry, ownership cleared, `SleepDisabled` unchanged.
 
-Use `os.Logger(subsystem: "dev.l0kifs.nightcrew")`. Log every state transition and every pmset call with its result. Do not log per-poll noise at default level. The watchdog logs with `logger -t nightcrew-watchdog`. The README documents:
-`log stream --predicate 'subsystem == "dev.l0kifs.nightcrew" OR senderImagePath ENDSWITH "logger"'`.
+Use `os.Logger(subsystem: "dev.l0kifs.nightcrew")`. Log every state transition and every pmset call with its result. Do not log per-poll noise at default level. The watchdog logs with `logger -t nightcrew-watchdog`. The README documents (full path: in zsh, the default shell, `log` is a builtin):
+`/usr/bin/log stream --predicate 'subsystem == "dev.l0kifs.nightcrew" OR senderImagePath ENDSWITH "logger"'`.
 
 ## 13. Acceptance criteria
 

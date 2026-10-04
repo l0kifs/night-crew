@@ -16,12 +16,12 @@ case "power":
     PowerCommand(duration: seconds(default: 0)).run()
 case "watch":
     let mode: Mode = arguments.contains("--off") ? .off : .auto
-    WatchCommand(duration: seconds(default: 60), mode: mode).run()
+    WatchCommand(duration: seconds(default: 60), mode: mode, live: arguments.contains("--live")).run()
 default:
     FileHandle.standardError.write(Data("""
         usage: nightcrew probe [--seconds N]
                nightcrew power [--seconds N]
-               nightcrew watch [--seconds N] [--off]
+               nightcrew watch [--seconds N] [--off] [--live]
 
         """.utf8))
     exit(64)

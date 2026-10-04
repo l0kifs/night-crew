@@ -3,19 +3,48 @@ import Foundation
 import IOKit
 import IOKit.ps
 import NightCrewCore
+import os
 
-/// SPEC §7, read side. Writes (`sudo -n pmset -a disablesleep`, `sleepnow`, `displaysleepnow`) come later.
-struct PowerControl: PowerSensing {
+/// SPEC §7. Every pmset call that changes state is logged with its result (§12).
+struct PowerControl: PowerSensing, PowerCommanding {
+    private let log = Logger(subsystem: "dev.l0kifs.nightcrew", category: "power")
+
     func read() -> PowerReading {
         let displays = displayState()
         let battery = batteryState()
-        return PowerReading(sleepDisabled: Pmset.sleepDisabled(in: run("/usr/bin/pmset", ["-g"])),
+        return PowerReading(sleepDisabled: readSleepDisabled(),
                             lidClosed: lidClosed(),
                             externalDisplayOnline: displays.externalOnline,
                             builtinDisplayAsleep: displays.builtinAsleep,
                             onBattery: battery.onBattery,
                             batteryPercent: battery.percent,
                             thermal: thermalState())
+    }
+
+    /// Exact argv of the sudoers rule (§9): `/usr/bin/pmset -a disablesleep 0|1`.
+    func setSleepDisabled(_ on: Bool) -> Bool {
+        logged(run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "-a", "disablesleep", on ? "1" : "0"]), "disablesleep \(on ? 1 : 0)")
+    }
+
+    func readSleepDisabled() -> Bool {
+        Pmset.sleepDisabled(in: run("/usr/bin/pmset", ["-g"]).output)
+    }
+
+    func sleepNow() -> Bool {
+        logged(run("/usr/bin/pmset", ["sleepnow"]), "sleepnow")
+    }
+
+    func displaySleepNow() -> Bool {
+        logged(run("/usr/bin/pmset", ["displaysleepnow"]), "displaysleepnow")
+    }
+
+    private func logged(_ result: (status: Int32, output: String, error: String), _ what: String) -> Bool {
+        if result.status == 0 {
+            log.info("pmset \(what, privacy: .public): ok")
+        } else {
+            log.error("pmset \(what, privacy: .public): exit \(result.status) \(result.error, privacy: .public)")
+        }
+        return result.status == 0
     }
 
     /// IORegistry `IOPMrootDomain` → `AppleClamshellState`. A Mac without a lid has no such key: not closed.
@@ -63,16 +92,19 @@ struct PowerControl: PowerSensing {
         }
     }
 
-    private func run(_ executable: String, _ arguments: [String]) -> String {
+    private func run(_ executable: String, _ arguments: [String]) -> (status: Int32, output: String, error: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return "" }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = Pipe(), error = Pipe()
+        process.standardOutput = output
+        process.standardError = error
+        process.standardInput = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return (-1, "", "could not launch \(executable)") }
+        let out = output.fileHandleForReading.readDataToEndOfFile()
+        let err = error.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        return String(decoding: data, as: UTF8.self)
+        return (process.terminationStatus, String(decoding: out, as: UTF8.self),
+                String(decoding: err, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
