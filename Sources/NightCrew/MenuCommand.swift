@@ -10,7 +10,8 @@ struct MenuCommand {
         let tick = poller.tick(mode: settings.mode)
         let menu = NSMenu()
         MenuController.build(into: menu, tick: tick, settings: settings, now: Date(),
-                             apply: { _, _ in }, retry: {}, quit: {})
+                             launchAtLogin: LaunchAgent.isInstalled ? LaunchAgent.isEnabled : nil,
+                             apply: { _, _ in }, retry: {}, toggleLaunchAtLogin: {}, quit: {})
         print("icon: \(MenuText.iconSymbol(tick.output))")
         printItems(menu, depth: 0)
     }

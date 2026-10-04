@@ -182,7 +182,7 @@ curl -fsSL https://raw.githubusercontent.com/l0kifs/nightcrew/main/scripts/insta
 ```
 Also support `git clone … && make install`.
 
-`install.sh` (idempotent, `set -euo pipefail`, clear output):
+`install.sh [--dry-run]` (idempotent, `set -euo pipefail`, clear output). Everything written as root or to launchd is generated and validated (`visudo -cf`, `plutil -lint`, `sh -n`) before the first change; `--dry-run` stops there and changes nothing. The root step builds the sudoers rule itself from its arguments, so no user-writable staged file can be swapped in between validation and installation:
 1. Check macOS ≥ 13.5, that the account is in group `admin` (`id -Gn`), and Xcode CLT (`xcode-select -p`) with `swift --version` ≥ 5.9. If CLT is missing, run `xcode-select --install` and exit with instructions. Every other failed check exits before building, with a message saying what is missing.
 2. Clone or update into `~/.nightcrew/src` (skip when run from a checkout).
 3. `swift build -c release` → `scripts/bundle.sh` assembles `NightCrew.app` and ad-hoc signs it.

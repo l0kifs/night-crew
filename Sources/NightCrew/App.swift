@@ -31,14 +31,7 @@ enum MenuApp {
     }
 
     private static func kickstartLaunchAgent() -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = ["kickstart", "gui/\(getuid())/dev.l0kifs.nightcrew"]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return false }
-        process.waitUntilExit()
-        return process.terminationStatus == 0
+        LaunchAgent.launchctl(["kickstart", LaunchAgent.service]).status == 0
     }
 
     /// `flock` on `~/.nightcrew/lock`, held until the process exits.
@@ -46,6 +39,50 @@ enum MenuApp {
         try? FileManager.default.createDirectory(at: stateFolder, withIntermediateDirectories: true)
         let descriptor = open(stateFolder.appendingPathComponent("lock").path, O_CREAT | O_RDWR, 0o644)
         return descriptor >= 0 && flock(descriptor, LOCK_EX | LOCK_NB) == 0
+    }
+}
+
+/// The app's LaunchAgent, written by `install.sh` (SPEC §9 step 6, §10 "Launch at login").
+enum LaunchAgent {
+    static let label = "dev.l0kifs.nightcrew"
+    static var service: String { "gui/\(getuid())/\(label)" }
+    static var plist: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents/\(label).plist")
+    }
+
+    static var isInstalled: Bool { FileManager.default.fileExists(atPath: plist.path) }
+
+    /// Not marked disabled by `launchctl disable` (older macOS prints `=> true`, newer `=> disabled`).
+    static var isEnabled: Bool {
+        let output = launchctl(["print-disabled", "gui/\(getuid())"]).output
+        return !output.contains("\"\(label)\" => disabled") && !output.contains("\"\(label)\" => true")
+    }
+
+    /// Off: `disable` (persists across logins) + `bootout`, which SIGTERMs a launchd-run app: it gives sleep back
+    /// and quits. On: `enable` + `bootstrap`; if this instance runs outside launchd, the new one finds the lock taken
+    /// and exits 0, so launchd does not restart it, and it starts at the next login.
+    static func setEnabled(_ enabled: Bool) {
+        if enabled {
+            _ = launchctl(["enable", service])
+            _ = launchctl(["bootstrap", "gui/\(getuid())", plist.path])
+        } else {
+            _ = launchctl(["disable", service])
+            _ = launchctl(["bootout", service])
+        }
+    }
+
+    @discardableResult
+    static func launchctl(_ arguments: [String]) -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return (-1, "") }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return (process.terminationStatus, String(decoding: data, as: UTF8.self))
     }
 }
 

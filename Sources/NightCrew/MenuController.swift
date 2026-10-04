@@ -46,10 +46,13 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        Self.build(into: menu, tick: tick, settings: settings, now: Date(), apply: apply, retry: { [loop] in
-            loop.retry()
-            loop.pollNow()
-        }, quit: quit)
+        let launchAtLogin = LaunchAgent.isInstalled ? LaunchAgent.isEnabled : nil
+        Self.build(into: menu, tick: tick, settings: settings, now: Date(), launchAtLogin: launchAtLogin, apply: apply,
+                   retry: { [loop] in
+                       loop.retry()
+                       loop.pollNow()
+                   },
+                   toggleLaunchAtLogin: { LaunchAgent.setEnabled(!(launchAtLogin ?? true)) }, quit: quit)
     }
 
     private func apply(mode: Mode?, config: Config?) {
@@ -71,9 +74,11 @@ final class MenuController: NSObject, NSMenuDelegate {
     }
 
     /// Builds the §10 menu. Static and data-driven so `nightcrew menu` can print it without a status item.
-    static func build(into menu: NSMenu, tick: Tick?, settings: Settings, now: Date,
+    /// `launchAtLogin` is nil until `install.sh` has written the LaunchAgent.
+    static func build(into menu: NSMenu, tick: Tick?, settings: Settings, now: Date, launchAtLogin: Bool?,
                       apply: @escaping (_ mode: Mode?, _ config: Config?) -> Void,
-                      retry: @escaping () -> Void, quit: @escaping () -> Void) {
+                      retry: @escaping () -> Void, toggleLaunchAtLogin: @escaping () -> Void,
+                      quit: @escaping () -> Void) {
         func info(_ title: String, indent: Int = 0) {
             let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             item.isEnabled = false
@@ -146,6 +151,9 @@ final class MenuController: NSObject, NSMenuDelegate {
             config.sleepWhenDone.toggle()
             apply(nil, config)
         })
+        if let launchAtLogin {
+            menu.addItem(ActionItem("Launch at login", checked: launchAtLogin, handler: toggleLaunchAtLogin))
+        }
         menu.addItem(.separator())
         menu.addItem(ActionItem("Quit NightCrew", key: "q", handler: quit))
     }
